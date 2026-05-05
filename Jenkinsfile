@@ -16,7 +16,7 @@ pipeline {
 
   stage('Docker Image Scan') {
     steps {
-        bat "trivy image --timeout 10m %DOCKER_REPO%:%IMAGE_TAG%"
+        bat "\"C:\\ProgramData\\chocolatey\\bin\\trivy.exe\" image --timeout 10m %DOCKER_REPO%:%IMAGE_TAG%"
     }
 }
 
