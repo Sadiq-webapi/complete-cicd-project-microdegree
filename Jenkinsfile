@@ -11,12 +11,15 @@ pipeline {
                 bat "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} ."
             }
         }
-        stage('Docker Image Scan') {
-            steps {
-                // Use the same variable here
-                bat "docker run --rm aquasec/trivy image ${DOCKER_IMAGE}:${IMAGE_TAG}"
-            }
-        }
+       stage('Docker Image Scan') {
+    steps {
+        bat '''
+        docker run --rm ^
+        -v /var/run/docker.sock:/var/run/docker.sock ^
+        aquasec/trivy image mohamedsadiq9741/twitter-app:%GIT_COMMIT%
+        '''
+    }
+}
         stage('Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
