@@ -14,11 +14,13 @@ pipeline {
             }
         }
 
-        stage('Docker Image Scan') {
-            steps {
-                bat "trivy image --scanners vuln %DOCKER_REPO%:%IMAGE_TAG%"
-            }
-        }
+      stage('Docker Image Scan') {
+    steps {
+        bat """
+        trivy image --timeout 10m ${DOCKER_REPO}:${IMAGE_TAG}
+        """
+    }
+}
 
         stage('Push to Hub') {
             steps {
