@@ -35,7 +35,13 @@ pipeline {
             bat '''
             @echo off
             echo Logging into Docker...
-            echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
+
+            REM Write password EXACTLY (no newline)
+            > pass.txt set /p=%DOCKER_PASS%
+
+            docker login -u %DOCKER_USER% --password-stdin < pass.txt
+
+            del pass.txt
             '''
         }
     }
