@@ -1,4 +1,22 @@
-stages {
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "manojkrishnappa/fullstack:${GIT_COMMIT}"
+        AWS_REGION = "ap-south-2"
+        CLUSTER_NAME = "my-complete-eks"
+        NAMESPACE = "sadiq"
+        // Standardizing the Sonar URL for your local setup
+        SONAR_URL = "http://localhost:9000"
+        SONAR_TOKEN = "squ_99e2a8a32fb79e14301b4442e0e0db4cda36728b"
+    }
+
+    tools {
+        jdk 'java-17'
+        maven 'maven'
+    }
+
+    stages {
         stage('Git Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/ManojKRISHNAPPA/complete-cicd-project-microdegree.git'
@@ -11,42 +29,42 @@ stages {
             }
         }
 
-        stage('Build') {
+        stage('Build & Unit Test') {
             steps {
                 bat "mvn package"
             }
         }
 
-        stage('sonarqube-stage'){
+        stage('SonarQube Analysis') {
             steps {
-                // Fixed the double "sh" issue and used bat
-                bat "mvn sonar:sonar -Dsonar.projectKey=devops -Dsonar.host.url=http://localhost:9000 -Dsonar.login=squ_99e2a8a32fb79e14301b4442e0e0db4cda36728b"
+                script {
+                    // Ensuring Maven is in the path for the Sonar scanner
+                    bat "mvn sonar:sonar -Dsonar.projectKey=devops -Dsonar.host.url=${SONAR_URL} -Dsonar.login=${SONAR_TOKEN}"
+                }
             }
         }
 
         stage('Build & Tag Docker Image') {
             steps {
                 script {
-                    bat "docker build -t manojkrishnappa/fullstack:${GIT_COMMIT} ."
+                    // Using %IMAGE_NAME% syntax for Windows Batch environment
+                    bat "docker build -t ${IMAGE_NAME} ."
                 }
             }
         }
 
         stage('Docker Image Scan') {
             steps {
-                script {
-                    // Ensure trivy is in your Windows Environment Path
-                    bat "trivy image --format table -o trivy-image-report.html manojkrishnappa/fullstack:${GIT_COMMIT}"
-                }
+                // Ensure Trivy is installed on your Windows machine and added to PATH
+                bat "trivy image --format table -o trivy-image-report.html ${IMAGE_NAME}"
             }
         }
 
         stage('Login to Docker Hub') {
             steps {
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        // On Windows, use double quotes for the echo command
-                        bat "echo %DOCKER_PASSWORD% | docker login -u %DOCKER_USERNAME% --password-stdin"
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
                     }
                 }
             }
@@ -54,37 +72,54 @@ stages {
 
         stage('Push Docker Image') {
             steps {
-                script {
-                    bat "docker push manojkrishnappa/fullstack:${GIT_COMMIT}"
-                }
+                bat "docker push ${IMAGE_NAME}"
             }
         }
         
-        stage('Updating the Cluster') {
+        stage('Updating EKS Kubeconfig') {
             steps {
-                script {
-                    bat "aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}"
-                }
+                // Ensure AWS CLI is installed on Windows
+                bat "aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}"
             }
         }
         
         stage('Deploy To Kubernetes') {
             steps {
-                withKubeConfig(caCertificate: '', clusterName: 'my-complete-eks', contextName: '', credentialsId: 'kube', namespace: 'sadiq', restrictKubeConfigAccess: false, serverUrl: 'https://AB2AD8E7E396070F02E8CEC4D6A0D7E9.gr7.us-east-1.eks.amazonaws.com') {
-                    // Windows does not have 'sed' by default. 
-                    // If you have Git Bash installed, 'sh' will work for sed, otherwise use PowerShell:
+                withKubeConfig(caCertificate: '', clusterName: "${CLUSTER_NAME}", contextName: '', credentialsId: 'kube', namespace: "${NAMESPACE}", restrictKubeConfigAccess: false, serverUrl: 'https://AB2AD8E7E396070F02E8CEC4D6A0D7E9.gr7.us-east-1.eks.amazonaws.com') {
+                    // Replacing 'sed' with PowerShell for Windows-native string replacement
                     powershell "(Get-Content deployment.yml).replace('replace', '${IMAGE_NAME}') | Set-Content deployment.yml"
-                    bat "kubectl apply -f deployment.yml -n %NAMESPACE%"
+                    bat "kubectl apply -f deployment.yml -n ${NAMESPACE}"
                 }
             }
         }
 
-        stage('Verify the Deployment') {
+        stage('Verify Deployment') {
             steps {
-                withKubeConfig(caCertificate: '', clusterName: 'my-complete-eks', contextName: '', credentialsId: 'kube', namespace: 'sadiq', restrictKubeConfigAccess: false, serverUrl: 'https://AB2AD8E7E396070F02E8CEC4D6A0D7E9.gr7.us-east-1.eks.amazonaws.com') {
-                    bat "kubectl get pods -n %NAMESPACE%"
-                    bat "kubectl get svc -n %NAMESPACE%"
-                }
+                bat "kubectl get pods -n ${NAMESPACE}"
+                bat "kubectl get svc -n ${NAMESPACE}"
             }
         }
     }
+
+    post {
+        always {
+            script {
+                def pipelineStatus = currentBuild.result ?: 'UNKNOWN'
+                def bannerColor = (pipelineStatus == 'SUCCESS') ? 'green' : 'red'
+
+                emailext (
+                    subject: "${env.JOB_NAME} - Build ${env.BUILD_NUMBER} - ${pipelineStatus}",
+                    body: """<html><body>
+                             <div style="border: 4px solid ${bannerColor}; padding: 10px;">
+                             <h2>${env.JOB_NAME} - Build ${env.BUILD_NUMBER}</h2>
+                             <h3 style="color: ${bannerColor};">Status: ${pipelineStatus}</h3>
+                             <p>View details here: <a href="${env.BUILD_URL}">Console Output</a></p>
+                             </div></body></html>""",
+                    to: 'mohamedsadiq9741@gmail.com',
+                    mimeType: 'text/html',
+                    attachmentsPattern: 'trivy-image-report.html'
+                )
+            }
+        }
+    }
+}
