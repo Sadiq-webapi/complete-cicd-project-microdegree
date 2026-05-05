@@ -25,18 +25,10 @@ pipeline {
             }
         }
 
-       stage('Docker Login') {
-    steps {
-        withCredentials([usernamePassword(
-            credentialsId: 'docker-hub-creds',
-            usernameVariable: 'DOCKER_USER',
-            passwordVariable: 'DOCKER_PASS'
-        )]) {
-            bat '''
-@echo off
-set /p PASS=%DOCKER_PASS% <nul
-echo %PASS% | docker login -u %DOCKER_USER% --password-stdin
-'''
+   stage('Docker Login') {
+    script {
+        docker.withRegistry('https://index.docker.io/v1/', 'docker-hub-creds') {
+            // Jenkins handles the login/logout automatically here
         }
     }
 }
