@@ -3,13 +3,13 @@ pipeline {
 
     environment {
         // IMAGE_NAME is used for tagging and scanning
-        IMAGE_NAME = "manojkrishnappa/fullstack:${GIT_COMMIT}"
+        IMAGE_NAME = "mohamedsadiq9741/fullstack:${GIT_COMMIT}"
         AWS_REGION = "ap-south-2"
         CLUSTER_NAME = "my-complete-eks"
         NAMESPACE = "sadiq"
         SONAR_URL = "http://localhost:9000"
         SONAR_TOKEN = "squ_18a41c2ce98900a9ff4d7cd40e28c5ba8b824139"
-        DOCKER_HUB_USER = "manojkrishnappa" // Added for cleaner login
+        DOCKER_HUB_USER = "mohamedsadiq9741" // Added for cleaner login
     }
 
     tools {
