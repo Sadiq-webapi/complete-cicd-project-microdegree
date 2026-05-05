@@ -2,13 +2,14 @@ pipeline {
     agent any
 
     environment {
+        // IMAGE_NAME is used for tagging and scanning
         IMAGE_NAME = "manojkrishnappa/fullstack:${GIT_COMMIT}"
         AWS_REGION = "ap-south-2"
         CLUSTER_NAME = "my-complete-eks"
         NAMESPACE = "sadiq"
-        // Standardizing the Sonar URL for your local setup
         SONAR_URL = "http://localhost:9000"
         SONAR_TOKEN = "squ_18a41c2ce98900a9ff4d7cd40e28c5ba8b824139"
+        DOCKER_HUB_USER = "manojkrishnappa" // Added for cleaner login
     }
 
     tools {
@@ -38,60 +39,56 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 script {
-                    // Ensuring Maven is in the path for the Sonar scanner
                     bat "mvn sonar:sonar -Dsonar.projectKey=devops -Dsonar.host.url=${SONAR_URL} -Dsonar.login=${SONAR_TOKEN}"
                 }
             }
         }
 
+        // MOVED LOGIN UP: Authentication is now done before building/pulling layers
+        stage('Login to Docker Hub') {
+            steps {
+                withCredentials([string(credentialsId: 'docker-hub-credentials', variable: 'DOCKER_HUB_TOKEN')]) {
+                    // Using variables to keep things dynamic
+                    bat "docker login -u ${DOCKER_HUB_USER} -p ${DOCKER_HUB_TOKEN}"
+                }
+            }
+        }
+
         stage('Build & Tag Docker Image') {
             steps {
                 script {
-                    // Using %IMAGE_NAME% syntax for Windows Batch environment
+                    // This now works because we are logged in
                     bat "docker build -t ${IMAGE_NAME} ."
                 }
             }
         }
 
-      stage('Docker Image Scan') {
+        stage('Docker Image Scan') {
             steps {
                 script {
-                    // Added --timeout 15m to prevent 'context deadline exceeded'
-                    // Also added --scanners vuln to focus only on vulnerabilities for speed
+                    // Timeout increased to 15m to prevent the "deadline exceeded" error
                     bat "docker run --rm -v //var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --timeout 15m --scanners vuln --format table -o trivy-image-report.html ${IMAGE_NAME}"
                 }
             }
         }
 
-       // 1. LOGIN FIRST
-        stage('Login to Docker Hub') {
+        stage('Push Docker Image') {
             steps {
-                withCredentials([string(credentialsId: 'docker-hub-credentials', variable: 'DOCKER_HUB_TOKEN')]) {
-                    bat "docker login -u your_username -p ${DOCKER_HUB_TOKEN}"
-                }
-            }
-        }
-
-        // 2. BUILD SECOND
-        stage('Build & Tag Docker Image') {
-            steps {
-                script {
-                    bat "docker build -t manojkrishnappa/fullstack:${GIT_COMMIT} ."
-                }
+                bat "docker push ${IMAGE_NAME}"
             }
         }
         
         stage('Updating EKS Kubeconfig') {
             steps {
-                // Ensure AWS CLI is installed on Windows
                 bat "aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}"
             }
         }
         
         stage('Deploy To Kubernetes') {
             steps {
+                // Ensure credentialsId 'kube' exists in Jenkins Credentials
                 withKubeConfig(caCertificate: '', clusterName: "${CLUSTER_NAME}", contextName: '', credentialsId: 'kube', namespace: "${NAMESPACE}", restrictKubeConfigAccess: false, serverUrl: 'https://AB2AD8E7E396070F02E8CEC4D6A0D7E9.gr7.us-east-1.eks.amazonaws.com') {
-                    // Replacing 'sed' with PowerShell for Windows-native string replacement
+                    // Windows-friendly image name replacement in the manifest
                     powershell "(Get-Content deployment.yml).replace('replace', '${IMAGE_NAME}') | Set-Content deployment.yml"
                     bat "kubectl apply -f deployment.yml -n ${NAMESPACE}"
                 }
