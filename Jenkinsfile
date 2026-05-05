@@ -53,12 +53,12 @@ pipeline {
             }
         }
 
-       stage('Docker Image Scan') {
+      stage('Docker Image Scan') {
             steps {
                 script {
-                    // Running Trivy as a container to avoid manual Windows installation
-                    // Note: the -v //var/run/docker.sock is the magic for Windows Docker Desktop
-                    bat "docker run --rm -v //var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --format table -o trivy-image-report.html ${IMAGE_NAME}"
+                    // Added --timeout 15m to prevent 'context deadline exceeded'
+                    // Also added --scanners vuln to focus only on vulnerabilities for speed
+                    bat "docker run --rm -v //var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --timeout 15m --scanners vuln --format table -o trivy-image-report.html ${IMAGE_NAME}"
                 }
             }
         }
