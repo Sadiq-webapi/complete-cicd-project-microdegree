@@ -8,7 +8,7 @@ pipeline {
         NAMESPACE = "sadiq"
         // Standardizing the Sonar URL for your local setup
         SONAR_URL = "http://localhost:9000"
-        SONAR_TOKEN = "squ_99e2a8a32fb79e14301b4442e0e0db4cda36728b"
+        SONAR_TOKEN = "squ_18a41c2ce98900a9ff4d7cd40e28c5ba8b824139"
     }
 
     tools {
