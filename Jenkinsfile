@@ -14,11 +14,9 @@ pipeline {
             }
         }
 
-    stage('Docker Image Scan') {
+  stage('Docker Image Scan') {
     steps {
-        bat """
-        docker run --rm aquasec/trivy image --timeout 10m ${DOCKER_REPO}:${IMAGE_TAG}
-        """
+        bat "trivy image --timeout 10m %DOCKER_REPO%:%IMAGE_TAG%"
     }
 }
 
