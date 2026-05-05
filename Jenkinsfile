@@ -25,7 +25,7 @@ pipeline {
             }
         }
 
-        stage('Trivy Scan (Fail on HIGH/CRITICAL)') {
+        stage('Trivy Scan) {
             steps {
                 bat """
                 "%TRIVY_PATH%" image ^
