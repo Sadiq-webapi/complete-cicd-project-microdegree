@@ -63,14 +63,14 @@ pipeline {
             }
         }
 
-        stage('Docker Image Scan') {
-            steps {
-                script {
-                    // Timeout increased to 15m to prevent the "deadline exceeded" error
-                    bat "docker run --rm -v //var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --timeout 15m --scanners vuln --format table -o trivy-image-report.html ${IMAGE_NAME}"
-                }
-            }
+       stage('Docker Image Scan') {
+    steps {
+        script {
+            // Ensure the image name matches the one built in the previous stage
+            bat "docker run --rm -v //var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --timeout 15m --scanners vuln --format table mohamedsadiq9741/twitter-app:0.0.3"
         }
+    }
+}
 
         stage('Push Docker Image') {
             steps {
