@@ -48,7 +48,7 @@ pipeline {
        stage('Login to Docker Hub') {
             steps {
                 // Use usernamePassword instead of string
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     bat "docker login -u %DOCKER_USER% -p %DOCKER_PASS%"
                 }
             }
