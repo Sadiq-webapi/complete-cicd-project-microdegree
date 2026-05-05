@@ -1,19 +1,4 @@
-pipeline {
-    agent any
-
-    environment {
-        IMAGE_NAME = "manojkrishnappa/fullstack:${GIT_COMMIT}"
-        AWS_REGION = "ap-south-2"
-        CLUSTER_NAME = "my-complete-eks"
-        NAMESPACE = "microdegree"
-    }
-
-    tools {
-        jdk 'java-17'
-        maven 'maven'
-    }
-
-    stages {
+stages {
         stage('Git Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/ManojKRISHNAPPA/complete-cicd-project-microdegree.git'
@@ -22,28 +7,27 @@ pipeline {
 
         stage('Compile') {
             steps {
-                sh "mvn compile"
+                bat "mvn compile"
             }
         }
 
         stage('Build') {
             steps {
-                sh "mvn package"
+                bat "mvn package"
             }
         }
 
         stage('sonarqube-stage'){
-            steps{
-                sh"""
-               sh "mvn sonar:sonar -Dsonar.projectKey=devops -Dsonar.host.url=http://localhost:9000 -Dsonar.login=squ_99e2a8a32fb79e14301b4442e0e0db4cda36728b"
-                """
+            steps {
+                // Fixed the double "sh" issue and used bat
+                bat "mvn sonar:sonar -Dsonar.projectKey=devops -Dsonar.host.url=http://localhost:9000 -Dsonar.login=squ_99e2a8a32fb79e14301b4442e0e0db4cda36728b"
             }
         }
+
         stage('Build & Tag Docker Image') {
             steps {
                 script {
-                    sh 'printenv'
-                    sh "docker build -t manojkrishnappa/fullstack:${GIT_COMMIT} ."
+                    bat "docker build -t manojkrishnappa/fullstack:${GIT_COMMIT} ."
                 }
             }
         }
@@ -51,7 +35,8 @@ pipeline {
         stage('Docker Image Scan') {
             steps {
                 script {
-                    sh "trivy image --format table -o trivy-image-report.html manojkrishnappa/fullstack:${GIT_COMMIT}"
+                    // Ensure trivy is in your Windows Environment Path
+                    bat "trivy image --format table -o trivy-image-report.html manojkrishnappa/fullstack:${GIT_COMMIT}"
                 }
             }
         }
@@ -60,7 +45,8 @@ pipeline {
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh "echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin"
+                        // On Windows, use double quotes for the echo command
+                        bat "echo %DOCKER_PASSWORD% | docker login -u %DOCKER_USERNAME% --password-stdin"
                     }
                 }
             }
@@ -69,7 +55,7 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 script {
-                    sh "docker push manojkrishnappa/fullstack:${GIT_COMMIT}"
+                    bat "docker push manojkrishnappa/fullstack:${GIT_COMMIT}"
                 }
             }
         }
@@ -77,7 +63,7 @@ pipeline {
         stage('Updating the Cluster') {
             steps {
                 script {
-                    sh "aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}"
+                    bat "aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}"
                 }
             }
         }
@@ -85,8 +71,10 @@ pipeline {
         stage('Deploy To Kubernetes') {
             steps {
                 withKubeConfig(caCertificate: '', clusterName: 'my-complete-eks', contextName: '', credentialsId: 'kube', namespace: 'sadiq', restrictKubeConfigAccess: false, serverUrl: 'https://AB2AD8E7E396070F02E8CEC4D6A0D7E9.gr7.us-east-1.eks.amazonaws.com') {
-                    sh "sed -i 's|replace|${IMAGE_NAME}|g' deployment.yml"
-                    sh "kubectl apply -f deployment.yml -n ${NAMESPACE}"
+                    // Windows does not have 'sed' by default. 
+                    // If you have Git Bash installed, 'sh' will work for sed, otherwise use PowerShell:
+                    powershell "(Get-Content deployment.yml).replace('replace', '${IMAGE_NAME}') | Set-Content deployment.yml"
+                    bat "kubectl apply -f deployment.yml -n %NAMESPACE%"
                 }
             }
         }
@@ -94,45 +82,9 @@ pipeline {
         stage('Verify the Deployment') {
             steps {
                 withKubeConfig(caCertificate: '', clusterName: 'my-complete-eks', contextName: '', credentialsId: 'kube', namespace: 'sadiq', restrictKubeConfigAccess: false, serverUrl: 'https://AB2AD8E7E396070F02E8CEC4D6A0D7E9.gr7.us-east-1.eks.amazonaws.com') {
-                    sh "kubectl get pods -n microdegree"
-                    sh "kubectl get svc -n microdegree"
+                    bat "kubectl get pods -n %NAMESPACE%"
+                    bat "kubectl get svc -n %NAMESPACE%"
                 }
             }
         }
     }
-
-    post {
-        always {
-            script {
-                def jobName = env.JOB_NAME
-                def buildNumber = env.BUILD_NUMBER
-                def pipelineStatus = currentBuild.result ?: 'UNKNOWN'
-                def bannerColor = pipelineStatus.toUpperCase() == 'SUCCESS' ? 'green' : 'red'
-
-                def body = """
-                    <html>
-                    <body>
-                    <div style="border: 4px solid ${bannerColor}; padding: 10px;">
-                    <h2>${jobName} - Build ${buildNumber}</h2>
-                    <div style="background-color: ${bannerColor}; padding: 10px;">
-                    <h3 style="color: white;">Pipeline Status: ${pipelineStatus.toUpperCase()}</h3>
-                    </div>
-                    <p>Check the <a href="${BUILD_URL}">console output</a>.</p>
-                    </div>
-                    </body>
-                    </html>
-                """
-
-                emailext (
-                    subject: "${jobName} - Build ${buildNumber} - ${pipelineStatus.toUpperCase()}",
-                    body: body,
-                    to: 'mohamedsadiq9741@gmail.com',
-                    from: 'mohamedsadiq9741@gmail.com',
-                    replyTo: 'mohamedsadiq9741@gmail.com',
-                    mimeType: 'text/html',
-                    attachmentsPattern: 'trivy-image-report.html'
-                )
-            }
-        }
-    }
-}
