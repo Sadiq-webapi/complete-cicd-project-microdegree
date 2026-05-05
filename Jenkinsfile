@@ -47,7 +47,7 @@ pipeline {
         // MOVED LOGIN UP: Authentication is now done before building/pulling layers
         stage('Login to Docker Hub') {
             steps {
-                withCredentials([string(credentialsId: 'docker-hub-credentials', variable: 'DOCKER_HUB_TOKEN')]) {
+                withCredentials([string(credentialsId: 'docker-hub-creds', variable: 'DOCKER_HUB_TOKEN')]) {
                     // Using variables to keep things dynamic
                     bat "docker login -u ${DOCKER_HUB_USER} -p ${DOCKER_HUB_TOKEN}"
                 }
