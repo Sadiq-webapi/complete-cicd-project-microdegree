@@ -53,10 +53,13 @@ pipeline {
             }
         }
 
-        stage('Docker Image Scan') {
+       stage('Docker Image Scan') {
             steps {
-                // Ensure Trivy is installed on your Windows machine and added to PATH
-                bat "trivy image --format table -o trivy-image-report.html ${IMAGE_NAME}"
+                script {
+                    // Running Trivy as a container to avoid manual Windows installation
+                    // Note: the -v //var/run/docker.sock is the magic for Windows Docker Desktop
+                    bat "docker run --rm -v //var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --format table -o trivy-image-report.html ${IMAGE_NAME}"
+                }
             }
         }
 
