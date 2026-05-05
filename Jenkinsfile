@@ -55,28 +55,30 @@ pipeline {
         }
 
         stage('Build & Tag Docker Image') {
-            steps {
-                script {
-                    // This now works because we are logged in
-                   bat "docker build -t mohamedsadiq9741/twitter-app:0.0.3 ."
-                }
-            }
-        }
-
-       stage('Docker Image Scan') {
     steps {
         script {
-            // Ensure the image name matches the one built in the previous stage
-            bat "docker run --rm -v //var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --timeout 15m --scanners vuln --format table mohamedsadiq9741/twitter-app:0.0.3"
+            // Tagging with the Git Commit ID for uniqueness
+            bat "docker build -t mohamedsadiq9741/twitter-app:%GIT_COMMIT% ."
         }
     }
 }
 
-        stage('Push Docker Image') {
-            steps {
-                bat "docker push ${IMAGE_NAME}"
-            }
+     stage('Docker Image Scan') {
+    steps {
+        // Scan the EXACT same name and tag you just built
+        bat "docker run --rm aquasec/trivy image mohamedsadiq9741/twitter-app:%GIT_COMMIT%"
+    }
+}
+
+       stage('Push Docker Image') {
+    steps {
+        withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            bat "docker login -u %DOCKER_USER% -p %DOCKER_PASS%"
+            // Push the EXACT same name and tag
+            bat "docker push mohamedsadiq9741/twitter-app:%GIT_COMMIT%"
         }
+    }
+}
         
         stage('Updating EKS Kubeconfig') {
             steps {
