@@ -13,11 +13,11 @@ pipeline {
         }
        stage('Docker Image Scan') {
     steps {
-        bat '''
-        docker run --rm ^
-        -v /var/run/docker.sock:/var/run/docker.sock ^
-        aquasec/trivy image mohamedsadiq9741/twitter-app:%GIT_COMMIT%
-        '''
+       bat '''
+docker run --rm ^
+-v //./pipe/docker_engine://./pipe/docker_engine ^
+aquasec/trivy image mohamedsadiq9741/twitter-app:%GIT_COMMIT%
+'''
     }
 }
         stage('Push Docker Image') {
