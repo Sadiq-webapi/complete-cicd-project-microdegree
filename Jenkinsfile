@@ -58,7 +58,7 @@ pipeline {
             steps {
                 script {
                     // This now works because we are logged in
-                    bat "docker build -t ${IMAGE_NAME} ."
+                   bat "docker build -t mohamedsadiq9741/twitter-app:0.0.3 ."
                 }
             }
         }
