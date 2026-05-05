@@ -1,31 +1,27 @@
 pipeline {
     agent any
     environment {
-        // Define these once so they are the same everywhere
-        DOCKER_IMAGE = "mohamedsadiq9741/twitter-app" 
-        IMAGE_TAG = "${env.GIT_COMMIT}"
+        // Centralize your image name here
+        DOCKER_REPO = "mohamedsadiq9741/twitter-app"
+        IMAGE_TAG   = "${env.GIT_COMMIT}"
     }
     stages {
-        stage('Build & Tag Docker Image') {
+        stage('Build') {
             steps {
-                bat "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} ."
+                bat "docker build -t ${DOCKER_REPO}:${IMAGE_TAG} ."
             }
         }
-       stage('Docker Image Scan') {
-    steps {
-       bat '''
-docker run --rm ^
--v //./pipe/docker_engine://./pipe/docker_engine ^
-aquasec/trivy image mohamedsadiq9741/twitter-app:%GIT_COMMIT%
-'''
-    }
-}
-        stage('Push Docker Image') {
+        stage('Docker Image Scan') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                // If this keeps hanging, add --reset to clear cache or check network
+                bat "docker run --rm aquasec/trivy image ${DOCKER_REPO}:${IMAGE_TAG}"
+            }
+        }
+        stage('Push to Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                     bat "docker login -u %USER% -p %PASS%"
-                    // Use the same variable here too!
-                    bat "docker push ${DOCKER_IMAGE}:${IMAGE_TAG}"
+                    bat "docker push ${DOCKER_REPO}:${IMAGE_TAG}"
                 }
             }
         }
