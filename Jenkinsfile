@@ -32,9 +32,11 @@ pipeline {
             usernameVariable: 'DOCKER_USER',
             passwordVariable: 'DOCKER_PASS'
         )]) {
-            bat """
-            echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
-            """
+            bat '''
+@echo off
+set /p PASS=%DOCKER_PASS% <nul
+echo %PASS% | docker login -u %DOCKER_USER% --password-stdin
+'''
         }
     }
 }
