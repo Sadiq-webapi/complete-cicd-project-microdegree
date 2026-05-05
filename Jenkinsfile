@@ -25,13 +25,18 @@ pipeline {
             }
         }
 
-  stage('Docker Login') {
+ stage('Docker Login') {
     steps {
-        script {
-            withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-                // Using %VAR% for Windows batch compatibility
-                bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
-            }
+        withCredentials([usernamePassword(
+            credentialsId: 'docker-hub-cred',
+            usernameVariable: 'DOCKER_USER',
+            passwordVariable: 'DOCKER_PASS'
+        )]) {
+            bat '''
+            @echo off
+            echo Logging into Docker...
+            echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
+            '''
         }
     }
 }
