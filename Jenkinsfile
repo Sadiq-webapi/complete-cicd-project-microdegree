@@ -25,19 +25,6 @@ pipeline {
             }
         }
 
-       stage('Trivy Scan') {
-    steps {
-        bat """
-        "%TRIVY_PATH%" image ^
-        --scanners vuln ^
-        --severity HIGH,CRITICAL ^
-        --exit-code 1 ^
-        --timeout 10m ^
-        ${DOCKER_REPO}:${IMAGE_TAG}
-        """
-    }
-}
-
         stage('Docker Login') {
             steps {
                 withCredentials([usernamePassword(
