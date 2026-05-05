@@ -63,19 +63,21 @@ pipeline {
             }
         }
 
+       // 1. LOGIN FIRST
         stage('Login to Docker Hub') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
-                    }
+                withCredentials([string(credentialsId: 'docker-hub-credentials', variable: 'DOCKER_HUB_TOKEN')]) {
+                    bat "docker login -u your_username -p ${DOCKER_HUB_TOKEN}"
                 }
             }
         }
 
-        stage('Push Docker Image') {
+        // 2. BUILD SECOND
+        stage('Build & Tag Docker Image') {
             steps {
-                bat "docker push ${IMAGE_NAME}"
+                script {
+                    bat "docker build -t manojkrishnappa/fullstack:${GIT_COMMIT} ."
+                }
             }
         }
         
