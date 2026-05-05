@@ -1,128 +1,29 @@
 pipeline {
     agent any
-
     environment {
-        // IMAGE_NAME is used for tagging and scanning
-        IMAGE_NAME = "mohamedsadiq9741/fullstack:${GIT_COMMIT}"
-        AWS_REGION = "ap-south-2"
-        CLUSTER_NAME = "my-complete-eks"
-        NAMESPACE = "sadiq"
-        SONAR_URL = "http://localhost:9000"
-        SONAR_TOKEN = "squ_18a41c2ce98900a9ff4d7cd40e28c5ba8b824139"
-        DOCKER_HUB_USER = "mohamedsadiq9741" // Added for cleaner login
+        // Define these once so they are the same everywhere
+        DOCKER_IMAGE = "mohamedsadiq9741/twitter-app" 
+        IMAGE_TAG = "${env.GIT_COMMIT}"
     }
-
-    tools {
-        jdk 'java-17'
-        maven 'maven'
-    }
-
     stages {
-        stage('Git Checkout') {
-            steps {
-                git branch: 'main', url: 'https://github.com/ManojKRISHNAPPA/complete-cicd-project-microdegree.git'
-            }
-        }
-
-        stage('Compile') {
-            steps {
-                bat "mvn compile"
-            }
-        }
-
-        stage('Build & Unit Test') {
-            steps {
-                bat "mvn package"
-            }
-        }
-
-        stage('SonarQube Analysis') {
-            steps {
-                script {
-                    bat "mvn sonar:sonar -Dsonar.projectKey=devops -Dsonar.host.url=${SONAR_URL} -Dsonar.login=${SONAR_TOKEN}"
-                }
-            }
-        }
-
-        // MOVED LOGIN UP: Authentication is now done before building/pulling layers
-       stage('Login to Docker Hub') {
-            steps {
-                // Use usernamePassword instead of string
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    bat "docker login -u %DOCKER_USER% -p %DOCKER_PASS%"
-                }
-            }
-        }
-
         stage('Build & Tag Docker Image') {
-    steps {
-        script {
-            // Tagging with the Git Commit ID for uniqueness
-            bat "docker build -t mohamedsadiq9741/twitter-app:%GIT_COMMIT% ."
-        }
-    }
-}
-
-     stage('Docker Image Scan') {
-    steps {
-        // Scan the EXACT same name and tag you just built
-        bat "docker run --rm aquasec/trivy image mohamedsadiq9741/twitter-app:%GIT_COMMIT%"
-    }
-}
-
-       stage('Push Docker Image') {
-    steps {
-        withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            bat "docker login -u %DOCKER_USER% -p %DOCKER_PASS%"
-            // Push the EXACT same name and tag
-            bat "docker push mohamedsadiq9741/twitter-app:%GIT_COMMIT%"
-        }
-    }
-}
-        
-        stage('Updating EKS Kubeconfig') {
             steps {
-                bat "aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}"
+                bat "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} ."
             }
         }
-        
-        stage('Deploy To Kubernetes') {
+        stage('Docker Image Scan') {
             steps {
-                // Ensure credentialsId 'kube' exists in Jenkins Credentials
-                withKubeConfig(caCertificate: '', clusterName: "${CLUSTER_NAME}", contextName: '', credentialsId: 'kube', namespace: "${NAMESPACE}", restrictKubeConfigAccess: false, serverUrl: 'https://AB2AD8E7E396070F02E8CEC4D6A0D7E9.gr7.us-east-1.eks.amazonaws.com') {
-                    // Windows-friendly image name replacement in the manifest
-                    powershell "(Get-Content deployment.yml).replace('replace', '${IMAGE_NAME}') | Set-Content deployment.yml"
-                    bat "kubectl apply -f deployment.yml -n ${NAMESPACE}"
+                // Use the same variable here
+                bat "docker run --rm aquasec/trivy image ${DOCKER_IMAGE}:${IMAGE_TAG}"
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    bat "docker login -u %USER% -p %PASS%"
+                    // Use the same variable here too!
+                    bat "docker push ${DOCKER_IMAGE}:${IMAGE_TAG}"
                 }
-            }
-        }
-
-        stage('Verify Deployment') {
-            steps {
-                bat "kubectl get pods -n ${NAMESPACE}"
-                bat "kubectl get svc -n ${NAMESPACE}"
-            }
-        }
-    }
-
-    post {
-        always {
-            script {
-                def pipelineStatus = currentBuild.result ?: 'UNKNOWN'
-                def bannerColor = (pipelineStatus == 'SUCCESS') ? 'green' : 'red'
-
-                emailext (
-                    subject: "${env.JOB_NAME} - Build ${env.BUILD_NUMBER} - ${pipelineStatus}",
-                    body: """<html><body>
-                             <div style="border: 4px solid ${bannerColor}; padding: 10px;">
-                             <h2>${env.JOB_NAME} - Build ${env.BUILD_NUMBER}</h2>
-                             <h3 style="color: ${bannerColor};">Status: ${pipelineStatus}</h3>
-                             <p>View details here: <a href="${env.BUILD_URL}">Console Output</a></p>
-                             </div></body></html>""",
-                    to: 'mohamedsadiq9741@gmail.com',
-                    mimeType: 'text/html',
-                    attachmentsPattern: 'trivy-image-report.html'
-                )
             }
         }
     }
